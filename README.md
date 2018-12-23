@@ -8,6 +8,7 @@ To use this with Postfix:
 * Install script somewhere, like /usr/local/bin/mailecho
 
 * Add a line to master.cf to define the mailecho service:
+
 ```mailecho unix - n n - - pipe flags=F user=nobody:nobody argv=/usr/local/bin/mailecho```
 
 ### Configure Postfix
