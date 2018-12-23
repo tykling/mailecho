@@ -76,7 +76,7 @@ class MailEcho:
 
         # mail loop prevention
         if 'In-Reply-To' in msg:
-            if 'MailEcho' in msg['In-Reply-To']:
+            if 'mailecho' in msg['In-Reply-To']:
                 # this looks like a reply to a MailEcho reply, bailing out
                 logger.error("The message has an In-Reply-To: header with a Message-Id of %s which looks like it was sent by MailEcho. Bailing out to prevent a loop.")
                 sys.exit(1)
