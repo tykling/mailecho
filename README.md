@@ -8,12 +8,14 @@ To use this with Postfix:
 * Install script somewhere, like /usr/local/bin/mailecho
 
 * Add a line to master.cf to define the mailecho service:
-    mailecho unix - n n - - pipe flags=F user=nobody:nobody argv=/usr/local/bin/mailecho
+```mailecho unix - n n - - pipe flags=F user=nobody:nobody argv=/usr/local/bin/mailecho```
 
 ### Configure Postfix
 * Pick an email to use for the MailEcho service and add a transport entry so Postfix knows to send the mail to the mailecho service:
-    echo@example.com mailecho:
+
+```echo@example.com mailecho:```
 
 * Postfix might not accept mail for the address until you add a mailbox or alias:
-    insert into virtual_alias_maps (localpart, domain, destination) values ('echo', 'example.com', 'echo@example.com');
+
+```insert into virtual_alias_maps (localpart, domain, destination) values ('echo', 'example.com', 'echo@example.com');```
 
