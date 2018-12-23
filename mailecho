@@ -28,7 +28,7 @@ defaultconfig = {
     'service_name': 'MailEcho Service',
     'smtp_server': 'localhost',
     'smtp_port': 25,
-    'reply_body_header': "This is an automated reply from the MailEcho service.\nSee between the rows of *** for the original message, including headers.",
+    'reply_body_header': "This is an automated reply from the MailEcho service.\nSee between the rows of *** for the original message, including headers.\n\n",
     'reply_body_footer': "Best regards,\n\nThe MailEcho Service",
     'send_email': True,
 }
@@ -89,10 +89,11 @@ class MailEcho:
         Put together a MIMEText message and send it using smtplib.SMTP
         """
         logger.debug("Put together the body of the reply...")
+        seperator = "***************************************************************************\n\n"
         body = self.config['reply_body_header']
-        body += "\n******************************************************\n"
+        body += seperator
         body += msg.as_string()
-        body += "\n******************************************************\n"
+        body += seperator
         body += self.config['reply_body_footer']
 
         # build the MIMEText object
