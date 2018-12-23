@@ -102,7 +102,7 @@ class MailEcho:
         reply['To'] = msg['From']
         reply['Subject'] = "%s Reply to %s" % (self.config['service_name'], msg['From'])
         reply['Date'] = utils.formatdate()
-        reply['Message-Id'] = "MailEcho.%s@%s" % (int(time.time()), socket.gethostname())
+        reply['Message-Id'] = "<mailecho.%s@%s>" % (int(time.time()), socket.gethostname())
         if 'Message-Id' in msg:
             reply['In-Reply-To'] = msg['Message-Id']
 
