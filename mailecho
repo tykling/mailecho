@@ -1,0 +1,209 @@
+#!/usr/bin/env python
+import sys
+import logging
+import logging.handlers
+import argparse
+import os
+import smtplib
+import yaml
+import time
+import socket
+import datetime
+from email import message_from_string
+from email.mime.text import MIMEText
+
+logger = logging.getLogger("mailecho.%s" % __name__)
+__version__ = "0.1.0"
+
+# set default syslog socket
+# TODO: there must be a better way to do this
+if sys.platform.startswith('freebsd'):
+    default_syslog_socket = '/var/run/log'
+else:
+    default_syslog_socket = '/dev/log'
+
+defaultconfig = {
+    'syslog_socket': default_syslog_socket,
+    'syslog_facility': 'mail',
+    'service_name': 'MailEcho Service',
+    'smtp_server': 'localhost',
+    'smtp_port': 25,
+    'reply_body_header': "This is an automated reply from the MailEcho service.\nSee between the rows of *** for the original message, including headers.",
+    'reply_body_footer': "Best regards,\n\nThe MailEcho Service",
+    'send_email': True,
+}
+
+class MailEcho:
+    """
+    The MailEcho class will auttempt to parse the email, and (depending on the config) send back a reply.
+    """
+    # define minimum required headers
+    required_headers = ['From', 'To']
+
+    def __init__(self, config):
+        """
+        The MailEcho class takes only a config dict as argument.
+        """
+        self.config = config
+
+    def echo(self, email):
+        """
+        The main MailEcho method. Takes a string representing a full email as argument.
+        """
+        # parse the email and send the reply
+        self.send_reply(self.parse_email(email))
+
+    def parse_email(self, email):
+        """
+        The parse_email method uses email.message_from_string to parse the email.
+        It checks if all the headers in self.required_headers are present before
+        returning the parsed email object.
+        """
+        msg = message_from_string(email)
+
+        # check for required headers in the parsed email
+        for req in self.required_headers:
+            if req not in msg:
+                logger.error("Required header missing: %s" % req)
+                sys.exit(1)
+
+        # a bit of output about the email
+        logger.debug("From: %s" % msg['From'])
+        logger.debug("To: %s" % msg['To'])
+        if 'Subject' in msg:
+            logger.debug("Subject: %s" % msg['Subject'])
+        logger.debug("Body:\n%s" % msg.get_payload())
+
+        # mail loop prevention
+        if 'In-Reply-To' in msg:
+            if 'MailEcho' in msg['In-Reply-To']:
+                # this looks like a reply to a MailEcho reply, bailing out
+                logger.error("The message has an In-Reply-To: header with a Message-Id of %s which looks like it was sent by MailEcho. Bailing out to prevent a loop.")
+                sys.exit(1)
+
+        # return the parsed email
+        return msg
+
+    def send_reply(self, msg):
+        """
+        Put together a MIMEText message and send it using smtplib.SMTP
+        """
+        logger.debug("Put together the body of the reply...")
+        body = self.config['reply_body_header']
+        body += "\n******************************************************\n"
+        body += msg.as_string()
+        body += "\n******************************************************\n"
+        body += self.config['reply_body_footer']
+
+        # build the MIMEText object
+        logger.debug("Build the MIMEText email object...")
+        reply = MIMEText(body, _charset='utf-8')
+        reply['From'] = msg['To']
+        reply['To'] = msg['From']
+        reply['Subject'] = "%s Reply to %s" % (self.config['service_name'], msg['From'])
+        reply['Date'] = datetime.datetime.now().strftime('%a, %d %b %Y %H:%M:%S %z') # TODO: make this timezone aware in a way that works with py2/3
+        reply['Message-Id'] = "MailEcho.%s@%s" % (int(time.time()), socket.gethostname())
+        if 'Message-Id' in msg:
+            reply['In-Reply-To'] = msg['Message-Id']
+
+        if config['send_email']:
+            # initiate connection to smtp server
+            logger.debug("Connecting to SMTP server %s:%s ..." % (self.config['smtp_server'], self.config['smtp_port']))
+            server = smtplib.SMTP(self.config['smtp_server'], self.config['smtp_port'])
+            # and login if needed
+            if 'smtp_username' in self.config and 'smtp_password' in self.config:
+                logger.debug("Logging into SMTP server...")
+                server.login(self.config['smtp_username'], self.config['smtp_password'])
+
+            # send the email
+            try:
+                logger.debug("Sending the reply...")
+                server.sendmail(reply['From'], reply['To'], reply.as_string())
+            except smtplib.SMTPException:
+                logger.exception("Got exception while SMTP sending email, bailing out")
+                sys.exit(1)
+
+            # close the SMTP connection
+            logger.debug("Closing the connection to the SMTP server...")
+            server.quit()
+        else:
+            # do not send the email, print it to stdout instead
+            logger.info("Printing email to stdout instead of sending it...")
+            print(reply.as_string())
+
+        # all good
+        logger.info("Finshed sending reply to %s" % reply['To'])
+
+
+if __name__ == '__main__':
+        """
+        Main method. Parse arguments, configure logging, and then process the email
+        """
+        # parse commandline arguments
+        parser = argparse.ArgumentParser(description="MailEcho version %s. See the README.md file for more info." % __version__)
+        parser.add_argument('-c', '--configfile', dest='configfile', help='Path of the yaml config file to use.')
+        parser.add_argument('-d', '--debug', action='store_const', dest='log_level', const=logging.DEBUG, default=logging.INFO, help='Debug output. Lots of output about the internal workings.')
+        parser.add_argument('-q', '--quiet', action='store_const', dest='log_level', const=logging.WARNING, help='Quiet mode. No output at all if there is nothing to do.')
+        parser.add_argument('-v', '--version', dest='version', default=False, action='store_true', help='Show version and exit.')
+        args = parser.parse_args()
+
+        # show version and exit?
+        if args.version:
+            # use .warning because .info does not display with the default logger
+            logger.warning("MailEcho version %s" % __version__)
+            sys.exit(0)
+
+        # configure the log format used for stdout/console depending on the requested loglevel
+        if args.log_level == logging.DEBUG:
+            console_logformat = "%(asctime)s %(levelname)s %(name)s:%(funcName)s():%(lineno)i:  %(message)s"
+        else:
+            console_logformat = "%(asctime)s %(levelname)s: %(message)s"
+        logging.basicConfig(
+            level=args.log_level,
+            format=console_logformat,
+            datefmt='%Y-%m-%d %H:%M:%S %z',
+        )
+
+        # read the yaml config file?
+        logger.debug("Default config is: %s" % defaultconfig)
+        if args.configfile:
+            try:
+                # make path absolute so the error message is better, and read the yaml
+                args.configfile = os.path.abspath(args.configfile)
+                with open(args.configfile, "r") as f:
+                    config = yaml.load(f)
+                    logger.debug("Read configuration from file: %s" % config)
+            except Exception as E:
+                # something went wrong, bail out
+                logger.exception("Unable to read or parse config: %s" % args.configfile)
+                sys.exit(1)
+
+            # merge default config with config from file
+            defaultconfig.update(config)
+        config = defaultconfig
+        logger.debug("Final config is: %s" % config)
+
+        # connect to syslog
+        logger.debug("Connecting to syslog socket %s" % config['syslog_socket'])
+        syslog_handler = logging.handlers.SysLogHandler(
+            address=config['syslog_socket'],
+            facility=config['syslog_facility'],
+        )
+
+        # configure the log format used for syslog, and
+        # we have to set the syslog tag manually because python
+        syslog_format = logging.Formatter('MailEcho: %(message)s')
+        syslog_handler.setFormatter(syslog_format)
+        try:
+            logger.addHandler(syslog_handler)
+        except Exception as E:
+            logger.exception("Unable to connect to syslog socket %s - logging to syslog not enabled. Exception info:" % E)
+
+        # run MailEcho
+        echoer = MailEcho(config=config)
+        echoer.echo(email=sys.stdin.read())
+
+        # all done
+        logger.debug("Exiting cleanly.")
+        sys.exit(0)
+
