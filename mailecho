@@ -128,11 +128,11 @@ class MailEcho:
             server.quit()
         else:
             # do not send the email, print it to stdout instead
-            logger.info("Printing email to stdout instead of sending it...")
+            logger.debug("Printing email to stdout instead of sending it...")
             print(reply.as_string())
 
         # all good
-        logger.info("Finshed sending reply to %s with Message-Id: %s" % (reply['To'], reply['Message-Id']))
+        logger.info("Sent %s to %s" % (reply['Message-Id'], reply['To']))
 
 
 if __name__ == '__main__':
@@ -157,7 +157,7 @@ if __name__ == '__main__':
         if args.log_level == logging.DEBUG:
             console_logformat = "%(asctime)s %(levelname)s %(name)s:%(funcName)s():%(lineno)i:  %(message)s"
         else:
-            console_logformat = "%(asctime)s %(levelname)s: %(message)s"
+            console_logformat = "%(message)s"
         logging.basicConfig(
             level=args.log_level,
             format=console_logformat,
