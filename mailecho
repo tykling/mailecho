@@ -9,7 +9,7 @@ import yaml
 import time
 import socket
 import datetime
-from email import message_from_string
+from email import message_from_string, utils
 from email.mime.text import MIMEText
 
 logger = logging.getLogger("mailecho.%s" % __name__)
@@ -101,7 +101,7 @@ class MailEcho:
         reply['From'] = msg['To']
         reply['To'] = msg['From']
         reply['Subject'] = "%s Reply to %s" % (self.config['service_name'], msg['From'])
-        reply['Date'] = datetime.datetime.now().strftime('%a, %d %b %Y %H:%M:%S %z') # TODO: make this timezone aware in a way that works with py2/3
+        reply['Date'] = utils.formatdate()
         reply['Message-Id'] = "MailEcho.%s@%s" % (int(time.time()), socket.gethostname())
         if 'Message-Id' in msg:
             reply['In-Reply-To'] = msg['Message-Id']
@@ -132,7 +132,7 @@ class MailEcho:
             print(reply.as_string())
 
         # all good
-        logger.info("Finshed sending reply to %s" % reply['To'])
+        logger.info("Finshed sending reply to %s with Message-Id: %s" % (reply['To'], reply['Message-Id']))
 
 
 if __name__ == '__main__':
