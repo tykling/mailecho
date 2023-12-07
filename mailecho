@@ -111,6 +111,8 @@ class MailEcho:
             # initiate connection to smtp server
             logger.debug("Connecting to SMTP server %s:%s ..." % (self.config['smtp_server'], self.config['smtp_port']))
             server = smtplib.SMTP(self.config['smtp_server'], self.config['smtp_port'])
+            # issue STARTTLS
+            server.starttls()
             # and login if needed
             if 'smtp_username' in self.config and 'smtp_password' in self.config:
                 logger.debug("Logging into SMTP server...")
